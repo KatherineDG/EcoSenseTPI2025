@@ -1,74 +1,44 @@
+from fastapi import FastAPI, Query
+from spark import spark_connection
+from utils import aggregate_trend
+
+app = FastAPI(title="API Metrics of Sensors")
+
+# Conexión de Spark
+spark = spark_connection.create_spark_session()
+
+
+@app.get("/")
+def root():
+    return {"message": "API de Métricas de Sensores con Spark"}
+
+
+@app.get("/trend")
+def get_sensor_data(
+        sensor: str = Query(...),
+        sede: str = Query(...),
+        start_date: str = Query(None),
+        end_date: str = Query(None),
+        year: int = Query(None),
+        start_year: int = Query(None),
+        end_year: int = Query(None),
+        trend_by: str = Query("day", enum=["hour","day","month","year"])):
+
+    """
+    Trae datos de un sensor usando Spark, filtrando por fecha de inicio y fin.
+    También puede devolver tendencia histórica si trend=True (order).
+    """
+    try:
+        # Leer datos desde Mongo
+        df = spark_connection.read_mongo(spark, sensor)
+        df_trend = aggregate_trend(df, trend_by, start_date, end_date, year, start_year, end_year)
+        # Convertir a Pandas devolviendo en JSON
+        return df_trend.toPandas().to_dict(orient="records")
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-# from dotenv import load_dotenv
-# import os
-# import findspark
-# from pyspark.sql import SparkSession
-# from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType
-
-# load_dotenv()
-
-# JAVA_HOME = os.getenv("JAVA_HOME")
-# SPARK_HOME = os.getenv("SPARK_HOME")
-# HADOOP_HOME = os.getenv("HADOOP_HOME")
-
-# os.environ["JAVA_HOME"] = JAVA_HOME
-# os.environ["SPARK_HOME"] = SPARK_HOME
-# os.environ["HADOOP_HOME"] = HADOOP_HOME
-# os.environ["PATH"] = os.path.join(JAVA_HOME, "bin") + os.pathsep + \
-#                      os.path.join(SPARK_HOME, "bin") + os.pathsep + \
-#                      os.path.join(HADOOP_HOME, "bin") + os.pathsep + \
-#                      os.environ["PATH"]
-
-# AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-# AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-# AWS_SESSION_TOKEN = os.getenv("AWS_SESSION_TOKEN")
-# AWS_REGION = os.getenv("AWS_REGION")
-
-# findspark.init(SPARK_HOME)
-
-# jars = [
-#     "file:///D:/Developer/spark/spark-3.5.2-bin-hadoop3/jars/hadoop-aws-3.3.4.jar",
-#     "file:///D:/Developer/spark/spark-3.5.2-bin-hadoop3/jars/aws-java-sdk-bundle-1.12.510.jar"
-# ]
-
-# spark = SparkSession.builder \
-#     .appName("SparkS3Example") \
-#     .config("spark.master", "local[*]") \
-#     .config("spark.jars", ",".join(jars)) \
-#     .getOrCreate()
-
-# hadoop_conf = spark._jsc.hadoopConfiguration()
-# hadoop_conf.set("fs.s3a.access.key", AWS_ACCESS_KEY_ID)
-# hadoop_conf.set("fs.s3a.secret.key", AWS_SECRET_ACCESS_KEY)
-# hadoop_conf.set("fs.s3a.session.token", AWS_SESSION_TOKEN)
-# hadoop_conf.set("fs.s3a.endpoint", f"s3.{AWS_REGION}.amazonaws.com")
-# hadoop_conf.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-# hadoop_conf.set("fs.s3a.connection.ssl.enabled", "true")
-# hadoop_conf.set("fs.s3a.path.style.access", "true")
-
-# schema = StructType([
-#     StructField("sensorId", StringType(), True),
-#     StructField("sensorType", StringType(), True),
-#     StructField("amountDetected", DoubleType(), True),
-#     StructField("unit", StringType(), True),
-#     StructField("timestamp", StringType(), True),
-#     StructField("sede", StringType(), True)
-# ])
-
-# df = spark.read.option("multiline", True).json("s3a://datalake-sensors-bucket/sensors-water/*.json")
-# df.show(truncate=False)
-
-# print("✅ Spark conectado a S3 correctamente")
